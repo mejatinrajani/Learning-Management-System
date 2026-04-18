@@ -1,0 +1,63 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# virtual environment
+venv/
+env/
+ENV/
+
+# Django stuff
+*.log
+*.pot
+*.pyc
+db.sqlite3
+db.sqlite3-journal
+
+# media & static (optional depending on setup)
+media/
+staticfiles/
+
+# migrations (optional: only ignore if auto-generated)
+# */migrations/*
+# !*/migrations/__init__.py
+
+# environment variables
+.env
+.env.*
+
+# secrets / keys
+*.pem
+*.key
+
+# cache
+.cache/
+*.pkl
+
+# IDE
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# test / coverage
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# celery
+celerybeat-schedule
+
+# mypy
+.mypy_cache/
+
+# pytest
+.pytest_cache/
+
+# build
+build/
+dist/

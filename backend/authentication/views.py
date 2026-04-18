@@ -15,11 +15,18 @@ class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = UserRegistrationSerializer
     permission_classes = [permissions.AllowAny]
+    authentication_classes = []  # Disable authentication for public signup endpoint
 
     def create(self, request, *args, **kwargs):
+        print(f"[REGISTRATION] Incoming registration request: {request.data.get('username')}, {request.data.get('email')}")
         serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        
+        if not serializer.is_valid():
+            print(f"[REGISTRATION] Validation errors: {serializer.errors}")
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
         user = serializer.save()
+        print(f"[REGISTRATION] User created successfully: {user.username}, role: {user.role}")
 
         # Generate tokens
         refresh = RefreshToken.for_user(user)
@@ -33,6 +40,7 @@ class RegisterView(generics.CreateAPIView):
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = UserLoginSerializer
+    authentication_classes = []  # Disable authentication for public login endpoint
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)

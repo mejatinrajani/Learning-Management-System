@@ -3,6 +3,9 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import ErrorBoundary from "@/components/ErrorBoundary";
+import { useEffect, useState } from "react";
+import React from "react";
 
 // Pages
 import Welcome from "./pages/Welcome";
@@ -88,22 +91,71 @@ import { useAuth } from "./components/auth/AuthContext";
 
 const App = () => {
   const { isAuthenticated, user, isLoading } = useAuth();
+  const [appError, setAppError] = useState<string | null>(null);
   
-  return (
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <div className="fixed top-4 right-4 z-50">
-          <ThemeSwitcher />
+  useEffect(() => {
+    console.log('[APP_DEBUG] Current state:', { 
+      isLoading, 
+      isAuthenticated, 
+      userExists: !!user,
+      userId: user?.id,
+      userRole: user?.role 
+    });
+  }, [isLoading, isAuthenticated, user]);
+  
+  console.log('[APP] Rendering with:', { isAuthenticated, user: user?.username, isLoading });
+  
+  // Show loading screen while auth is initializing
+  if (isLoading) {
+    console.log('[APP_DEBUG] Auth still loading, showing spinner');
+    return (
+      <TooltipProvider>
+        <div className="w-full h-screen flex items-center justify-center bg-background">
+          <div className="flex flex-col items-center gap-4">
+            <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+            <p className="text-muted-foreground">Loading...</p>
+          </div>
         </div>
-        <AnimatePresence mode="wait">
-          <Routes>
+      </TooltipProvider>
+    );
+  }
+  
+  console.log('[APP_DEBUG] Auth loading complete, rendering app');
+  
+  if (appError) {
+    return (
+      <div className="w-full h-screen flex items-center justify-center bg-red-50">
+        <div className="max-w-md bg-white p-6 rounded-lg shadow-lg">
+          <h2 className="text-xl font-bold text-red-600 mb-4">App Error</h2>
+          <p className="text-gray-700 mb-4">{appError}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="w-full bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700"
+          >
+            Reload Page
+          </button>
+        </div>
+      </div>
+    );
+  }
+  
+  try {
+    return (
+      <ErrorBoundary>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <div className="fixed top-4 right-4 z-50">
+              <ThemeSwitcher />
+            </div>
+            <AnimatePresence mode="wait">
+              <Routes>
             {/* Public Routes */}
             <Route 
               path="/" 
               element={
-                isAuthenticated && user ? 
+                isAuthenticated && user && user.role ? 
                 <Navigate to={`/${user.role.toLowerCase()}`} replace /> : 
                 <Welcome />
               } 
@@ -111,7 +163,7 @@ const App = () => {
             <Route 
               path="/login" 
               element={
-                isAuthenticated && user ? 
+                isAuthenticated && user && user.role ? 
                 <Navigate to={`/${user.role.toLowerCase()}`} replace /> : 
                 <Login />
               } 
@@ -119,7 +171,7 @@ const App = () => {
             <Route 
               path="/signup" 
               element={
-                isAuthenticated && user ? 
+                isAuthenticated && user && user.role ? 
                 <Navigate to={`/${user.role.toLowerCase()}`} replace /> : 
                 <Signup />
               } 
@@ -203,11 +255,31 @@ const App = () => {
             
             {/* Catch-all Route */}
             <Route path="*" element={<NotFound />} />
-          </Routes>
-        </AnimatePresence>
-      </BrowserRouter>
-    </TooltipProvider>
-  );
+              </Routes>
+            </AnimatePresence>
+          </BrowserRouter>
+        </TooltipProvider>
+      </ErrorBoundary>
+    );
+  } catch (error) {
+    console.error('[APP] Render error:', error);
+    return (
+      <TooltipProvider>
+        <div className="w-full h-screen flex items-center justify-center bg-red-50">
+          <div className="max-w-md bg-white p-6 rounded-lg shadow-lg">
+            <h2 className="text-xl font-bold text-red-600 mb-4">Render Error</h2>
+            <p className="text-gray-700 mb-4 text-sm">{String(error)}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="w-full bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700"
+            >
+              Reload Page
+            </button>
+          </div>
+        </div>
+      </TooltipProvider>
+    );
+  }
 };
 
 export default App;

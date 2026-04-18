@@ -12,9 +12,22 @@ const api: AxiosInstance = axios.create({
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('access_token');
-    if (token) {
+    
+    // Don't add auth headers for public endpoints
+    const publicEndpoints = ['/auth/register/', '/auth/login/', '/auth/token/refresh/'];
+    const isPublicEndpoint = publicEndpoints.some(endpoint => config.url?.includes(endpoint));
+    
+    if (token && !isPublicEndpoint) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    
+    console.log('[API] Request:', {
+      url: config.url,
+      hasToken: !!token,
+      isPublic: isPublicEndpoint,
+      willAddAuth: !!token && !isPublicEndpoint
+    });
+    
     return config;
   },
   (error) => Promise.reject(error)
@@ -24,23 +37,42 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+    
+    console.log('[API] Response error:', {
+      status: error.response?.status,
+      url: originalRequest?.url,
+      retry: originalRequest?._retry
+    });
+    
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
       const refreshToken = localStorage.getItem('refresh_token');
+      
+      console.log('[API] Attempting token refresh, has refresh token:', !!refreshToken);
+      
       if (refreshToken) {
         try {
           const response = await axios.post(`${API_BASE_URL}/auth/token/refresh/`, { refresh: refreshToken });
           const newToken = response.data.access;
+          console.log('[API] Token refreshed successfully');
           localStorage.setItem('access_token', newToken);
           originalRequest.headers.Authorization = `Bearer ${newToken}`;
           return api(originalRequest);
         } catch (refreshError) {
+          console.log('[API] Token refresh failed, clearing auth');
           localStorage.removeItem('access_token');
           localStorage.removeItem('refresh_token');
-          window.location.href = '/login';
+          // Redirect to login only if not already on login page
+          if (window.location.pathname !== '/login') {
+            window.location.href = '/login';
+          }
         }
       } else {
-        window.location.href = '/login';
+        console.log('[API] No refresh token available, redirecting to login');
+        // Redirect to login only if not already on login page
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login';
+        }
       }
     }
     return Promise.reject(error);

@@ -88,9 +88,10 @@ const Signup = () => {
         role: formData.role,
       };
 
-      console.log("Form submitted:", userData);
+      console.log("[SIGNUP] Form submitted:", userData);
 
       const success = await register(userData);
+      console.log("[SIGNUP] Register function returned:", success);
 
       if (success) {
         toast({
@@ -98,13 +99,12 @@ const Signup = () => {
           description: "Welcome to the LMS portal!",
         });
 
-        // Redirect based on role
+        console.log('[SIGNUP] Registration successful for role:', formData.role);
+
+        // Redirect based on role to dashboard
         switch (formData.role) {
           case "TEACHER":
             navigate("/teacher");
-            break;
-          case "DEVELOPER":
-            navigate("/developer");
             break;
           case "PRINCIPAL":
             navigate("/principal");
@@ -115,22 +115,33 @@ const Signup = () => {
           case "STUDENT":
             navigate("/student");
             break;
+          default:
+            navigate("/dashboard");
         }
       } else {
         setError("Failed to create account. Please try again.");
       }
     } catch (error: any) {
       // Always print the error for debugging
-      console.error("Registration error:", error);
+      console.error("[SIGNUP] Registration error:", error);
 
       // Try to extract a meaningful message
       let errorMsg = "An error occurred during registration";
       if (error?.response?.data) {
         // If backend sent a JSON error
-        errorMsg = typeof error.response.data === "string"
-          ? error.response.data
-          : JSON.stringify(error.response.data);
-        console.error("Backend error response:", error.response.data);
+        if (typeof error.response.data === "string") {
+          errorMsg = error.response.data;
+        } else if (typeof error.response.data === "object") {
+          // Try to find a specific field error
+          const data = error.response.data;
+          if (data.username) errorMsg = `Username: ${data.username[0]}`;
+          else if (data.email) errorMsg = `Email: ${data.email[0]}`;
+          else if (data.password) errorMsg = `Password: ${data.password[0]}`;
+          else if (data.password_confirm) errorMsg = `Password: ${data.password_confirm[0]}`;
+          else if (data.detail) errorMsg = data.detail;
+          else errorMsg = JSON.stringify(data);
+        }
+        console.error("[SIGNUP] Backend error response:", error.response.data);
       } else if (error?.message) {
         errorMsg = error.message;
       } else if (typeof error === "string") {
@@ -209,12 +220,12 @@ const Signup = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="email">Username</Label>
+                <Label htmlFor="username">Username</Label>
                 <Input
                   id="username"
                   name="username"
                   type="text"
-                  placeholder="Enter your email"
+                  placeholder="Enter your username"
                   value={formData.username}
                   onChange={handleInputChange}
                   required

@@ -1,11 +1,10 @@
-
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, CheckSquare, Clock, X, AlertTriangle } from 'lucide-react';
+import { Calendar, CheckSquare, Clock, X, AlertTriangle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Link } from 'react-router-dom';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
   DropdownMenu,
@@ -13,74 +12,114 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { attendanceAPI } from '@/services/apiService';
+import { useAuth } from '@/components/auth/AuthContext';
+
+interface AttendanceRecord {
+  id: number;
+  student_name: string;
+  date: string;
+  subject_name?: string;
+  status_details: {
+    name: string;
+    short_code: string;
+    is_present: boolean;
+  };
+  remarks: string;
+}
 
 const Attendance: React.FC = () => {
-  // Mock attendance data
+  const { user } = useAuth();
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('all');
+
+  console.log('[STUDENT_ATTENDANCE_PAGE] Component mounted/re-rendered');
+
+  // Fetch attendance data
+  useEffect(() => {
+    const fetchAttendance = async () => {
+      setLoading(true);
+      try {
+        console.log('[STUDENT_ATTENDANCE] Fetching attendance records...');
+        const data = await attendanceAPI.getAttendance();
+        console.log('[STUDENT_ATTENDANCE] Received data:', data);
+        
+        // Handle both array and paginated responses
+        const records = Array.isArray(data) ? data : data.results || [];
+        setAttendanceRecords(records);
+      } catch (error) {
+        console.error('[STUDENT_ATTENDANCE] Error fetching attendance:', error);
+        setAttendanceRecords([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAttendance();
+  }, []);
+
+  // Calculate attendance summary
   const attendanceSummary = {
-    present: 42,
-    absent: 3,
-    late: 2,
-    total: 47,
-    percentage: 89,
-    currentMonth: 'May 2025'
+    present: attendanceRecords.filter(r => r.status_details?.is_present).length,
+    absent: attendanceRecords.filter(r => r.status_details?.name === 'Absent').length,
+    late: attendanceRecords.filter(r => r.status_details?.name === 'Late').length,
+    excused: attendanceRecords.filter(r => r.status_details?.name === 'Excused').length,
+    total: attendanceRecords.length,
+    percentage: 0,
   };
 
-  const attendanceRecords = [
-    { date: '2025-05-16', status: 'present', time: '08:55 AM', notes: '' },
-    { date: '2025-05-15', status: 'present', time: '08:50 AM', notes: '' },
-    { date: '2025-05-14', status: 'present', time: '08:48 AM', notes: '' },
-    { date: '2025-05-13', status: 'late', time: '09:10 AM', notes: '10 minutes late' },
-    { date: '2025-05-12', status: 'absent', time: '-', notes: 'Medical leave' },
-    { date: '2025-05-11', status: 'present', time: '08:52 AM', notes: '' },
-    { date: '2025-05-10', status: 'present', time: '08:55 AM', notes: '' },
-    { date: '2025-05-09', status: 'present', time: '08:58 AM', notes: '' },
-    { date: '2025-05-08', status: 'present', time: '08:50 AM', notes: '' },
-    { date: '2025-05-07', status: 'absent', time: '-', notes: 'Family event' },
-    { date: '2025-05-06', status: 'late', time: '09:05 AM', notes: '5 minutes late' },
-    { date: '2025-05-05', status: 'present', time: '08:52 AM', notes: '' },
-    { date: '2025-05-04', status: 'present', time: '08:50 AM', notes: '' },
-    { date: '2025-05-03', status: 'present', time: '08:55 AM', notes: '' },
-    { date: '2025-05-02', status: 'absent', time: '-', notes: 'Sick leave' },
-    { date: '2025-05-01', status: 'present', time: '08:48 AM', notes: '' },
-    { date: '2025-04-30', status: 'present', time: '08:52 AM', notes: '' },
-    { date: '2025-04-29', status: 'present', time: '08:55 AM', notes: '' },
-    { date: '2025-04-28', status: 'present', time: '08:50 AM', notes: '' },
-    { date: '2025-04-27', status: 'present', time: '08:48 AM', notes: '' },
-  ];
+  attendanceSummary.percentage = attendanceSummary.total > 0 
+    ? Math.round((attendanceSummary.present / attendanceSummary.total) * 100) 
+    : 0;
 
-  const monthlyAttendance = [
-    { month: 'January 2025', present: 18, absent: 2, late: 1, percentage: 85.7 },
-    { month: 'February 2025', present: 19, absent: 1, late: 0, percentage: 95.0 },
-    { month: 'March 2025', present: 21, absent: 1, late: 1, percentage: 91.3 },
-    { month: 'April 2025', present: 20, absent: 2, late: 0, percentage: 90.9 },
-    { month: 'May 2025', present: 15, absent: 3, late: 2, percentage: 75.0 }
-  ];
+  // Filter records based on selected filter
+  const filteredRecords = attendanceRecords.filter(record => {
+    if (filter === 'present') return record.status_details?.is_present;
+    if (filter === 'absent') return record.status_details?.name === 'Absent';
+    if (filter === 'late') return record.status_details?.name === 'Late';
+    return true;
+  });
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string, is_present: boolean) => {
     switch(status) {
-      case 'present':
+      case 'Present':
         return <Badge className="bg-green-100 text-green-800">Present</Badge>;
-      case 'absent':
+      case 'Absent':
         return <Badge variant="destructive">Absent</Badge>;
-      case 'late':
+      case 'Late':
         return <Badge className="bg-yellow-100 text-yellow-800">Late</Badge>;
+      case 'Excused':
+        return <Badge className="bg-blue-100 text-blue-800">Excused</Badge>;
       default:
-        return null;
+        return <Badge>{status}</Badge>;
     }
   };
 
   const getStatusIcon = (status: string) => {
     switch(status) {
-      case 'present':
+      case 'Present':
         return <CheckSquare className="h-4 w-4 text-green-600" />;
-      case 'absent':
+      case 'Absent':
         return <X className="h-4 w-4 text-red-600" />;
-      case 'late':
+      case 'Late':
         return <Clock className="h-4 w-4 text-yellow-600" />;
+      case 'Excused':
+        return <AlertTriangle className="h-4 w-4 text-blue-600" />;
       default:
         return null;
     }
   };
+
+  if (loading) {
+    return (
+      <DashboardLayout requiredRole="student">
+        <div className="flex justify-center items-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout requiredRole="student">
@@ -99,15 +138,17 @@ const Attendance: React.FC = () => {
           <Card>
             <CardHeader>
               <CardTitle>Attendance Summary</CardTitle>
-              <CardDescription>Academic year 2024-2025</CardDescription>
+              <CardDescription>Current academic period</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="text-center mb-6">
-                <div className="text-5xl font-bold text-student">{attendanceSummary.percentage}%</div>
+                <div className={`text-5xl font-bold ${attendanceSummary.percentage >= 85 ? 'text-green-600' : 'text-red-600'}`}>
+                  {attendanceSummary.percentage}%
+                </div>
                 <p className="text-sm text-muted-foreground">Overall Attendance Rate</p>
               </div>
               
-              <div className="grid grid-cols-3 gap-4 text-center">
+              <div className="grid grid-cols-4 gap-2 text-center">
                 <div className="p-3 bg-green-50 rounded-md">
                   <div className="text-2xl font-semibold text-green-600">{attendanceSummary.present}</div>
                   <div className="text-xs text-green-800">Present</div>
@@ -119,6 +160,10 @@ const Attendance: React.FC = () => {
                 <div className="p-3 bg-yellow-50 rounded-md">
                   <div className="text-2xl font-semibold text-yellow-600">{attendanceSummary.late}</div>
                   <div className="text-xs text-yellow-800">Late</div>
+                </div>
+                <div className="p-3 bg-blue-50 rounded-md">
+                  <div className="text-2xl font-semibold text-blue-600">{attendanceSummary.excused}</div>
+                  <div className="text-xs text-blue-800">Excused</div>
                 </div>
               </div>
               
@@ -132,43 +177,43 @@ const Attendance: React.FC = () => {
               )}
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardHeader>
-              <CardTitle>Monthly Breakdown</CardTitle>
-              <CardDescription>Attendance statistics by month</CardDescription>
+              <CardTitle>Statistics</CardTitle>
+              <CardDescription>Total records: {attendanceSummary.total}</CardDescription>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Month</TableHead>
-                    <TableHead>Present</TableHead>
-                    <TableHead>Absent</TableHead>
-                    <TableHead>Late</TableHead>
-                    <TableHead>Percentage</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {monthlyAttendance.map((month, index) => (
-                    <TableRow key={index}>
-                      <TableCell className="font-medium">{month.month}</TableCell>
-                      <TableCell>{month.present}</TableCell>
-                      <TableCell>{month.absent}</TableCell>
-                      <TableCell>{month.late}</TableCell>
-                      <TableCell>
-                        <Badge className={`${
-                          month.percentage >= 90 ? 'bg-green-100 text-green-800' :
-                          month.percentage >= 80 ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-red-100 text-red-800'
-                        }`}>
-                          {month.percentage}%
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <div className="space-y-4">
+                <div className="flex justify-between items-center pb-2 border-b">
+                  <span className="text-sm text-muted-foreground">Total Days</span>
+                  <span className="font-semibold">{attendanceSummary.total}</span>
+                </div>
+                <div className="flex justify-between items-center pb-2 border-b">
+                  <span className="text-sm text-muted-foreground">Present Rate</span>
+                  <span className="font-semibold text-green-600">
+                    {attendanceSummary.total > 0 
+                      ? `${Math.round((attendanceSummary.present / attendanceSummary.total) * 100)}%` 
+                      : '0%'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center pb-2 border-b">
+                  <span className="text-sm text-muted-foreground">Absent Rate</span>
+                  <span className="font-semibold text-red-600">
+                    {attendanceSummary.total > 0 
+                      ? `${Math.round((attendanceSummary.absent / attendanceSummary.total) * 100)}%` 
+                      : '0%'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Late Rate</span>
+                  <span className="font-semibold text-yellow-600">
+                    {attendanceSummary.total > 0 
+                      ? `${Math.round((attendanceSummary.late / attendanceSummary.total) * 100)}%` 
+                      : '0%'}
+                  </span>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -179,66 +224,74 @@ const Attendance: React.FC = () => {
               <CardTitle>Daily Attendance Log</CardTitle>
               <CardDescription>Record of your daily attendance</CardDescription>
             </div>
-            <div className="flex items-center space-x-2">
-              <Button variant="outline" size="sm">
-                <Calendar className="h-4 w-4 mr-2" /> Calendar View
-              </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    Filter
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem>All Records</DropdownMenuItem>
-                  <DropdownMenuItem>Present Only</DropdownMenuItem>
-                  <DropdownMenuItem>Absent Only</DropdownMenuItem>
-                  <DropdownMenuItem>Late Only</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  Filter: {filter === 'all' ? 'All' : filter.charAt(0).toUpperCase() + filter.slice(1)}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setFilter('all')}>
+                  All Records
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setFilter('present')}>
+                  Present Only
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setFilter('absent')}>
+                  Absent Only
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setFilter('late')}>
+                  Late Only
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Day</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Check-In Time</TableHead>
-                  <TableHead>Notes</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {attendanceRecords.map((record, index) => {
-                  const date = new Date(record.date);
-                  const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'long' });
-                  const formattedDate = date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-                  
-                  return (
-                    <TableRow key={index}>
-                      <TableCell>{formattedDate}</TableCell>
-                      <TableCell>{dayOfWeek}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-2">
-                          {getStatusIcon(record.status)}
-                          <span>{getStatusBadge(record.status)}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>{record.time}</TableCell>
-                      <TableCell>{record.notes}</TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-            
-            <div className="mt-4 flex justify-center">
-              <Button variant="outline">Load More</Button>
-            </div>
+            {filteredRecords.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                {attendanceRecords.length === 0 
+                  ? 'No attendance records found. Contact your teacher.'
+                  : 'No records match the selected filter.'}
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Subject</TableHead>
+                    <TableHead>Remarks</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredRecords.map((record) => {
+                    const date = new Date(record.date);
+                    const formattedDate = date.toLocaleDateString('en-US', { 
+                      year: 'numeric', 
+                      month: 'short', 
+                      day: 'numeric' 
+                    });
+                    
+                    return (
+                      <TableRow key={record.id}>
+                        <TableCell>{formattedDate}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center space-x-2">
+                            {getStatusIcon(record.status_details?.name || '')}
+                            <span>{getStatusBadge(record.status_details?.name || '', record.status_details?.is_present)}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>{record.subject_name || '-'}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{record.remarks || '-'}</TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            )}
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader>
             <CardTitle>Attendance Policy</CardTitle>

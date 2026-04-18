@@ -30,10 +30,18 @@ export default function Login() {
     setError('');
 
     try {
-      await login({ username: data.username, password: data.password });
+      const response = await login({ username: data.username, password: data.password });
+      console.log('[LOGIN] Login response:', response);
+      
       toast.success('Login successful!');
-      if (user && user.role) {
-        const redirectPath = getDashboardPath(user.role);
+      
+      // Use user from response or context
+      const userRole = user?.role;
+      console.log('[LOGIN] User role from context:', userRole);
+      
+      if (userRole) {
+        const redirectPath = getDashboardPath(userRole);
+        console.log('[LOGIN] Redirecting to:', redirectPath);
         navigate(redirectPath);
       } else {
         setError('User info not available after login.');
@@ -50,6 +58,7 @@ export default function Login() {
       }
       setError(errorMessage);
       toast.error(errorMessage);
+      console.error('[LOGIN] Error:', err);
     } finally {
       setIsLoading(false);
     }
@@ -58,15 +67,15 @@ export default function Login() {
   const getDashboardPath = (role: string) => {
     switch (role) {
       case 'DEVELOPER':
-        return '/developer/dashboard';
+        return '/developer';
       case 'PRINCIPAL':
-        return '/principal/dashboard';
+        return '/principal';
       case 'TEACHER':
-        return '/teacher/dashboard';
+        return '/teacher';
       case 'STUDENT':
-        return '/student/dashboard';
+        return '/student';
       case 'PARENT':
-        return '/parent/dashboard';
+        return '/parent';
       default:
         return '/dashboard';
     }

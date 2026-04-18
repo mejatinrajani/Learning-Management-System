@@ -41,15 +41,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const checkAuthStatus = async () => {
     const token = localStorage.getItem('access_token');
+    console.log('[AUTH] Checking auth status, token exists:', !!token);
+    
     if (!token) {
       setIsLoading(false);
       setUser(null);
       setProfile(null);
+      console.log('[AUTH] No token found, user is not authenticated');
       return;
     }
+    
     try {
       setIsLoading(true);
+      console.log('[AUTH] Fetching current user profile...');
       const user = await authService.getCurrentUser();
+      console.log('[AUTH] Current user fetched:', user);
+      
       if (user) {
         setUser(user);
         setProfile(user.profile || null);
@@ -58,7 +65,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setProfile(null);
       }
     } catch (error) {
-      console.error('Auth check failed:', error);
+      console.error('[AUTH] Auth check failed:', error);
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
       localStorage.removeItem('user');
@@ -72,11 +79,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const login = async (credentials: LoginCredentials) => {
     try {
       setIsLoading(true);
+      console.log('[AUTH] Attempting login with:', credentials.username);
       const response = await authService.login(credentials);
+      console.log('[AUTH] Login response:', response);
       setUser(response.user);
       setProfile(response.user.profile || null);
+      console.log('[AUTH] User set after login:', response.user);
     } catch (error) {
-      console.error('Login failed:', error);
+      console.error('[AUTH] Login failed:', error);
       throw error;
     } finally {
       setIsLoading(false);
@@ -127,12 +137,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const register = async (data: RegisterData): Promise<boolean> => {
     try {
       setIsLoading(true);
+      console.log('[AUTH] Attempting registration with:', { ...data, password: '***' });
       const response: AuthResponse = await authService.register(data);
+      console.log('[AUTH] Registration response:', response);
       setUser(response.user);
       setProfile(response.user.profile || null);
+      console.log('[AUTH] User set after registration:', response.user);
       return true;
     } catch (error) {
-      console.error('Registration failed:', error);
+      console.error('[AUTH] Registration failed:', error);
       return false;
     } finally {
       setIsLoading(false);

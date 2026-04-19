@@ -37,7 +37,12 @@ const Sidebar: React.FC = () => {
   let menuItems: SidebarItem[] = [];
 
   // Define menu items based on user role
-  switch (user.role?.toLowerCase()) {
+  const roleValue = user.role?.toLowerCase()?.trim();
+  console.log('[SIDEBAR] User role raw:', user.role);
+  console.log('[SIDEBAR] User role processed:', roleValue);
+  console.log('[SIDEBAR] Type:', typeof roleValue);
+  
+  switch (roleValue) {
     case 'developer':
       menuItems = [
         { title: 'Dashboard', href: '/developer', icon: <Home className="mr-2 h-4 w-4" /> },
@@ -115,6 +120,25 @@ const Sidebar: React.FC = () => {
         { title: 'Help & Support', href: '/parent/help', icon: <HelpCircle className="mr-2 h-4 w-4" /> },
       ];
       break;
+    
+    default:
+      console.warn('[SIDEBAR] Unknown role, defaulting to teacher menu:', roleValue);
+      // Default to teacher menu if role doesn't match
+      menuItems = [
+        { title: 'Dashboard', href: '/teacher', icon: <Home className="mr-2 h-4 w-4" /> },
+        { title: 'My Classes', href: '/teacher/classes', icon: <BookOpen className="mr-2 h-4 w-4" /> },
+        { title: 'Mark Attendance', href: '/teacher/mark-attendance', icon: <UserCheck className="mr-2 h-4 w-4" /> },
+        { title: 'Upload Marks', href: '/teacher/upload-marks', icon: <Upload className="mr-2 h-4 w-4" /> },
+        { title: 'Attendance Reports', href: '/teacher/attendance', icon: <CheckSquare className="mr-2 h-4 w-4" /> },
+        { title: 'Assignments', href: '/teacher/assignments', icon: <FileText className="mr-2 h-4 w-4" /> },
+        { title: 'View Submissions', href: '/teacher/view-submissions', icon: <Eye className="mr-2 h-4 w-4" /> },
+        { title: 'Resources', href: '/teacher/resources', icon: <ResourceIcon className="mr-2 h-4 w-4" /> },
+        { title: 'Notices', href: '/teacher/notices', icon: <Bell className="mr-2 h-4 w-4" /> },
+        { title: 'Behaviour Log', href: '/teacher/behaviour', icon: <ClipboardList className="mr-2 h-4 w-4" /> },
+        { title: 'Calendar', href: '/teacher/calendar', icon: <Calendar className="mr-2 h-4 w-4" /> },
+        { title: 'Profile', href: '/teacher/profile', icon: <User className="mr-2 h-4 w-4" /> },
+        { title: 'Help & Support', href: '/teacher/help', icon: <HelpCircle className="mr-2 h-4 w-4" /> },
+      ];
   }
 
   return (
@@ -123,9 +147,9 @@ const Sidebar: React.FC = () => {
         <h2 className="text-lg font-bold">School LMS</h2>
         <p className={cn(
           "text-xs mt-1 px-2 py-1 rounded-full w-fit",
-          `role-indicator-${user.role}`
+          `role-indicator-${user.role?.toLowerCase() || 'user'}`
         )}>
-          {user.role.charAt(0).toUpperCase() + user.role.slice(1)} Portal
+          {user.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'User'} Portal
         </p>
       </div>
       

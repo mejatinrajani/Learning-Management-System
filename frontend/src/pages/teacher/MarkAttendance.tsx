@@ -76,17 +76,18 @@ useEffect(() => {
       const [classesRes, sectionsRes, statusesRes] = await Promise.all([
         academicAPI.getClasses(),
         academicAPI.getSections(),
-        attendanceAPI.getAttendance({}),
+        attendanceAPI.getStatuses(),
       ]);
 
       // Extract data correctly
-      const classesData = classesRes.data.results || [];
-      const sectionsData = sectionsRes.data.results || [];
+      const classesData = classesRes.data.results || classesRes.results || [];
+      const sectionsData = sectionsRes.data.results || sectionsRes.results || [];
       const statusesData = statusesRes.results || [];
 
-      console.log('Classes Data:', classesData);
-      console.log('Sections Data:', sectionsData);
-      console.log('Statuses Data:', statusesData);
+      console.log('[MARK_ATTENDANCE] Classes:', classesData);
+      console.log('[MARK_ATTENDANCE] Sections:', sectionsData);
+      console.log('[MARK_ATTENDANCE] Statuses:', statusesData);
+      console.log('[MARK_ATTENDANCE] Full statuses response:', statusesRes);
 
       setClasses(classesData);
       setSections(sectionsData);
@@ -133,20 +134,22 @@ useEffect(() => {
   fetchInitialData();
 }, [toast]);
 
-  // Filter sections based on selected class
-// Assuming classes have a `name` property that matches section's `class_name`
-  const filteredSections = sections.filter(
-  (section) => section.class_name === classes.find((cls) => cls.id === selectedClassId)?.name
-  );
-
   // Reset section when class changes
   useEffect(() => {
-    if (selectedClassId && filteredSections.length > 0) {
-      setSelectedSectionId(filteredSections[0].id);
-    } else {
-      setSelectedSectionId(null);
+    if (selectedClassId) {
+      const selectedClass = classes.find((cls) => cls.id === selectedClassId);
+      if (selectedClass) {
+        const matchingSections = sections.filter(
+          (section) => section.class_name === selectedClass.name
+        );
+        if (matchingSections.length > 0) {
+          setSelectedSectionId(matchingSections[0].id);
+        } else {
+          setSelectedSectionId(null);
+        }
+      }
     }
-  }, [selectedClassId, filteredSections]);
+  }, [selectedClassId, sections, classes]);
 
   // Fetch students and existing attendance when class, section, or date changes
   useEffect(() => {
@@ -162,11 +165,11 @@ useEffect(() => {
     try {
       const [studentsRes, attendanceRes] = await Promise.all([
         academicAPI.getStudents(classId, sectionId),
-        attendanceAPI.getClassReport(classId.toString(), date),
+        attendanceAPI.getClassReport(classId.toString(), date, sectionId.toString()),
       ]);
 
       // Extract student data
-      const studentsData: StudentAPI[] = studentsRes.data.data.results || [];
+      const studentsData: StudentAPI[] = studentsRes.data.results || [];
       console.log('Students Data:', studentsData);
 
       const initialStudents: Student[] = studentsData.map((student: StudentAPI) => ({
@@ -222,6 +225,11 @@ useEffect(() => {
       student.rollNo.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Compute filtered sections based on selected class
+  const filteredSections = sections.filter(
+    (section) => section.class_name === classes.find((cls) => cls.id === selectedClassId)?.name
+  );
+
   // Update attendance status for a student
   const updateAttendance = (studentId: number, status: AttendanceStatus) => {
     setStudents((prevStudents) =>
@@ -246,7 +254,10 @@ useEffect(() => {
   // Get status ID from short code
   const getStatusId = (status: AttendanceStatus): number | undefined => {
     const shortCode = statusStringToShortCode[status];
-    return statuses.find((s) => s.short_code === shortCode)?.id;
+    const foundStatus = statuses.find((s) => s.short_code === shortCode);
+    console.log(`[GET_STATUS_ID] Looking for status: ${status}, short_code: ${shortCode}, found:`, foundStatus);
+    console.log(`[GET_STATUS_ID] Available statuses:`, statuses);
+    return foundStatus?.id;
   };
 
   // Save attendance to backend
@@ -279,17 +290,22 @@ useEffect(() => {
         return {
           student: student.id,
           status: statusId,
-          remarks: '',
         };
       });
 
-      await attendanceAPI.bulkMarkAttendance({
-        class_id: selectedClassId,
-        section_id: selectedSectionId,
+      const payload = {
+        class_assigned: selectedClassId,
+        section: selectedSectionId,
         date: selectedDate,
         period: 1,
         attendance_data: attendanceData,
-      });
+      };
+
+      console.log('[ATTENDANCE_SAVE] Sending payload:', JSON.stringify(payload, null, 2));
+      console.log('[ATTENDANCE_SAVE] Number of students:', attendanceData.length);
+
+      const response = await attendanceAPI.bulkMarkAttendance(payload);
+      console.log('[ATTENDANCE_SAVE] Response:', response);
 
       toast({
         title: 'Success',
@@ -297,10 +313,13 @@ useEffect(() => {
       });
       navigate('/teacher/attendance');
     } catch (error: any) {
-      console.error('Failed to save attendance:', error);
+      console.error('[ATTENDANCE_SAVE] Full error:', error);
+      console.error('[ATTENDANCE_SAVE] Error response:', error.response);
+      console.error('[ATTENDANCE_SAVE] Error status:', error.response?.status);
+      console.error('[ATTENDANCE_SAVE] Error data:', JSON.stringify(error.response?.data, null, 2));
       toast({
         title: 'Error',
-        description: error.response?.data?.detail || error.message || 'Failed to save attendance',
+        description: error.response?.data?.detail || error.response?.data?.non_field_errors?.[0] || error.message || 'Failed to save attendance',
         variant: 'destructive',
       });
     } finally {
@@ -561,61 +580,61 @@ useEffect(() => {
                       <span className="font-medium text-sm">{student.name}</span>
                     </div>
                     <div className="col-span-7">
-                      <div className="flex gap-x-2">
+                      <div className="grid grid-cols-4 gap-3 w-full">
                         <Button
                           variant={student.status === AttendanceStatus.PRESENT ? 'default' : 'outline'}
-                          size="sm"
+                          size="lg"
                           onClick={() => updateAttendance(student.id, AttendanceStatus.PRESENT)}
                           disabled={saving}
-                          className={
+                          className={`px-4 py-6 text-base font-semibold ${
                             student.status === AttendanceStatus.PRESENT
                               ? 'bg-green-600 hover:bg-green-700'
                               : 'hover:bg-gray-100 dark:hover:bg-gray-700'
-                          }
+                          }`}
                         >
-                          <UserCheck className="mr-1 h-4 w-4" />
+                          <UserCheck className="mr-2 h-5 w-5" />
                           Present
                         </Button>
                         <Button
                           variant={student.status === AttendanceStatus.ABSENT ? 'destructive' : 'outline'}
-                          size="sm"
+                          size="lg"
                           onClick={() => updateAttendance(student.id, AttendanceStatus.ABSENT)}
                           disabled={saving}
-                          className={
+                          className={`px-4 py-6 text-base font-semibold ${
                             student.status === AttendanceStatus.ABSENT
                               ? 'bg-red-600 hover:bg-red-700'
                               : 'hover:bg-gray-100 dark:hover:bg-gray-700'
-                          }
+                          }`}
                         >
-                          <UserX className="mr-1 h-4 w-4" />
+                          <UserX className="mr-2 h-5 w-5" />
                           Absent
                         </Button>
                         <Button
                           variant={student.status === AttendanceStatus.LATE ? 'secondary' : 'outline'}
-                          size="sm"
+                          size="lg"
                           onClick={() => updateAttendance(student.id, AttendanceStatus.LATE)}
                           disabled={saving}
-                          className={
+                          className={`px-4 py-6 text-base font-semibold ${
                             student.status === AttendanceStatus.LATE
                               ? 'bg-yellow-600 hover:bg-yellow-700 text-black'
                               : 'hover:bg-gray-100 dark:hover:bg-gray-700'
-                          }
+                          }`}
                         >
-                          <Clock className="mr-1 h-4 w-4" />
+                          <Clock className="mr-2 h-5 w-5" />
                           Late
                         </Button>
                         <Button
                           variant={student.status === AttendanceStatus.EXCUSED ? 'secondary' : 'outline'}
-                          size="sm"
+                          size="lg"
                           onClick={() => updateAttendance(student.id, AttendanceStatus.EXCUSED)}
                           disabled={saving}
-                          className={
+                          className={`px-4 py-6 text-base font-semibold ${
                             student.status === AttendanceStatus.EXCUSED
                               ? 'bg-blue-600 hover:bg-blue-700 text-white'
                               : 'hover:bg-gray-100 dark:hover:bg-gray-700'
-                          }
+                          }`}
                         >
-                          <AlertTriangle className="mr-1 h-4 w-4" />
+                          <AlertTriangle className="mr-2 h-5 w-5" />
                           Excused
                         </Button>
                       </div>

@@ -30,7 +30,7 @@ const TeacherDashboard: React.FC = () => {
   }
 
   // Only redirect if user is loaded and not a teacher
-  if (user && user.role !== "TEACHER") {
+  if (user && user.role && user.role !== "TEACHER") {
     return <Navigate to={`/${user.role.toLowerCase()}`} replace />;
   }
 

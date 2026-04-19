@@ -16,6 +16,7 @@ class AssignmentSerializer(serializers.ModelSerializer):
     resources = AssignmentResourceSerializer(many=True, read_only=True)
     submission_count = serializers.SerializerMethodField()
     total_students = serializers.SerializerMethodField()
+    is_overdue = serializers.SerializerMethodField()
 
     class Meta:
         model = Assignment
@@ -23,16 +24,20 @@ class AssignmentSerializer(serializers.ModelSerializer):
             'id', 'title', 'description', 'teacher', 'teacher_name',
             'subject', 'subject_name', 'class_assigned', 'class_name',
             'section', 'section_name', 'due_date', 'max_marks',
-            'instructions', 'is_active', 'resources', 'submission_count',
-            'total_students', 'created_at', 'updated_at'
+            'instructions', 'status', 'is_active', 'is_overdue', 'allow_late_submission',
+            'resources', 'submission_count', 'total_students', 
+            'assigned_date', 'created_at', 'updated_at', 'attachment'
         ]
-        read_only_fields = ['teacher', 'created_at', 'updated_at']
+        read_only_fields = ['teacher', 'created_at', 'updated_at', 'assigned_date']
 
     def get_submission_count(self, obj):
         return obj.submissions.count()
 
     def get_total_students(self, obj):
         return obj.section.studentprofile_set.count()
+    
+    def get_is_overdue(self, obj):
+        return obj.is_overdue
 
 class SubmissionSerializer(serializers.ModelSerializer):
     student_name = serializers.CharField(source='student.full_name', read_only=True)

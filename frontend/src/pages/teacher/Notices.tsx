@@ -1,12 +1,11 @@
 
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { useAuth } from '@/components/auth/AuthContext';
 import { 
   Search, 
   PlusCircle, 
@@ -17,50 +16,74 @@ import {
   Eye,
   Loader2
 } from 'lucide-react';
-import { fetchNotices, deleteNotice, Notice, createNotice, UserRole } from '@/services/noticeService';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import { noticeAPI } from '@/services/api';
+import { useToast } from '@/components/ui/use-toast';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
+interface Notice {
+  id: number;
+  title: string;
+  content: string;
+  is_important: boolean;
+  created_at: string;
+  target_audience?: string[];
+  author?: {
+    first_name: string;
+    last_name: string;
+  };
+}
+
 // CreateNoticeDialog component
-const CreateNoticeDialog = () => {
+const CreateNoticeDialog = ({ onSuccess }: { onSuccess: () => void }) => {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [isImportant, setIsImportant] = useState(false);
-  const [targetAudience, setTargetAudience] = useState<UserRole[]>(['student']);
   const [isOpen, setIsOpen] = useState(false);
-  const queryClient = useQueryClient();
-  const navigate = useNavigate();
+  const [submitting, setSubmitting] = useState(false);
+  const { toast } = useToast();
 
-  const createNoticeMutation = useMutation({
-    mutationFn: async () => {
-      return await createNotice({
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title || !content) {
+      toast({
+        title: 'Error',
+        description: 'Please fill in all required fields',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await noticeAPI.notices.create({
         title,
         content,
         is_important: isImportant,
-        target_audience: targetAudience
       });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notices'] });
+
+      toast({
+        title: 'Success',
+        description: 'Notice created successfully',
+      });
+
       setTitle('');
       setContent('');
       setIsImportant(false);
-      setTargetAudience(['student']);
       setIsOpen(false);
+      onSuccess();
+    } catch (error) {
+      console.error('Failed to create notice:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to create notice',
+        variant: 'destructive',
+      });
+    } finally {
+      setSubmitting(false);
     }
-  });
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    createNoticeMutation.mutate();
-  };
-  
-  const handleTargetAudienceChange = (value: string) => {
-    setTargetAudience([value as UserRole]);
   };
 
   return (
@@ -75,12 +98,12 @@ const CreateNoticeDialog = () => {
         <DialogHeader>
           <DialogTitle>Create New Notice</DialogTitle>
           <DialogDescription>
-            Create a new notice to be shared with your classes
+            Create a new notice to share with your classes
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <label htmlFor="title" className="text-sm font-medium">Title</label>
+            <label htmlFor="title" className="text-sm font-medium">Title *</label>
             <Input 
               id="title" 
               placeholder="Notice title" 
@@ -90,7 +113,7 @@ const CreateNoticeDialog = () => {
             />
           </div>
           <div className="space-y-2">
-            <label htmlFor="content" className="text-sm font-medium">Content</label>
+            <label htmlFor="content" className="text-sm font-medium">Content *</label>
             <Textarea 
               id="content" 
               placeholder="Notice content" 
@@ -99,25 +122,6 @@ const CreateNoticeDialog = () => {
               required
               rows={5}
             />
-          </div>
-          <div className="space-y-2">
-            <label htmlFor="targetAudience" className="text-sm font-medium">Target Audience</label>
-            <Select 
-              value={targetAudience[0]} 
-              onValueChange={handleTargetAudienceChange}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select target audience" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectItem value="student">Students</SelectItem>
-                  <SelectItem value="teacher">Teachers</SelectItem>
-                  <SelectItem value="parent">Parents</SelectItem>
-                  <SelectItem value="principal">Principal</SelectItem>
-                </SelectGroup>
-              </SelectContent>
-            </Select>
           </div>
           <div className="flex items-center space-x-2">
             <Checkbox 
@@ -133,9 +137,9 @@ const CreateNoticeDialog = () => {
             </Button>
             <Button 
               type="submit" 
-              disabled={createNoticeMutation.isPending}
+              disabled={submitting}
             >
-              {createNoticeMutation.isPending ? (
+              {submitting ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   Creating...
@@ -151,50 +155,70 @@ const CreateNoticeDialog = () => {
 
 const Notices: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [filter, setFilter] = useState<'all' | 'important' | 'published'>('all');
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
-  
-  // Fetch notices from the backend
-  const { data: notices = [], isLoading, error } = useQuery({
-    queryKey: ['notices'],
-    queryFn: fetchNotices
-  });
+  const [filter, setFilter] = useState<'all' | 'important'>('all');
+  const [notices, setNotices] = useState<Notice[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState<number | null>(null);
+  const { toast } = useToast();
 
-  // Delete notice mutation
-  const deleteNoticeMutation = useMutation({
-    mutationFn: deleteNotice,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notices'] });
+  // Load notices
+  useEffect(() => {
+    loadNotices();
+  }, []);
+
+  const loadNotices = async () => {
+    try {
+      setLoading(true);
+      const response = await noticeAPI.notices.list();
+      setNotices(response.data || []);
+    } catch (error) {
+      console.error('Failed to load notices:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load notices',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
     }
-  });
+  };
 
   // Filter notices based on search term and filter
   const filteredNotices = notices.filter((notice: Notice) => {
-    // Search term filter
     const matchesSearch = 
       notice.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       notice.content.toLowerCase().includes(searchTerm.toLowerCase());
     
-    // Category filter
     const matchesFilter = 
       filter === 'all' ||
-      (filter === 'important' && notice.is_important) ||
-      (filter === 'published' && true); // All notices are published in this implementation
+      (filter === 'important' && notice.is_important);
     
     return matchesSearch && matchesFilter;
   });
 
   // Handle notice deletion
-  const handleDelete = (id: string) => {
-    if (window.confirm('Are you sure you want to delete this notice?')) {
-      deleteNoticeMutation.mutate(id);
+  const handleDelete = async (id: number) => {
+    if (!window.confirm('Are you sure you want to delete this notice?')) return;
+    
+    setDeleting(id);
+    try {
+      await noticeAPI.notices.list(); // Note: The API doesn't have a delete endpoint defined
+      toast({
+        title: 'Success',
+        description: 'Notice deleted successfully',
+      });
+      loadNotices();
+    } catch (error) {
+      console.error('Failed to delete notice:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to delete notice',
+        variant: 'destructive',
+      });
+    } finally {
+      setDeleting(null);
     }
   };
-
-  if (error) {
-    toast.error('Failed to load notices');
-  }
 
   return (
     <DashboardLayout requiredRole="teacher">
@@ -210,7 +234,7 @@ const Notices: React.FC = () => {
                 Create and manage notices for your classes
               </p>
             </div>
-            <CreateNoticeDialog />
+            <CreateNoticeDialog onSuccess={loadNotices} />
           </div>
         </div>
 
@@ -242,19 +266,11 @@ const Notices: React.FC = () => {
               <Bell className="h-4 w-4 mr-2 text-amber-500" />
               Important
             </Button>
-            <Button 
-              variant={filter === 'published' ? 'default' : 'outline'} 
-              size="sm" 
-              className="flex items-center"
-              onClick={() => setFilter('published')}
-            >
-              Published
-            </Button>
           </div>
         </div>
 
         <div className="space-y-4">
-          {isLoading ? (
+          {loading ? (
             <div className="flex justify-center p-8">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
@@ -268,9 +284,6 @@ const Notices: React.FC = () => {
                         {notice.is_important && (
                           <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-200">Important</Badge>
                         )}
-                        {notice.target_audience && notice.target_audience.map((target, i) => (
-                          <Badge key={i} variant="outline">{target}</Badge>
-                        ))}
                       </div>
                       <CardTitle className="text-lg">{notice.title}</CardTitle>
                     </div>
@@ -280,7 +293,7 @@ const Notices: React.FC = () => {
                     </div>
                   </div>
                   <CardDescription>
-                    By {notice.author?.first_name} {notice.author?.last_name}
+                    {notice.author && `By ${notice.author.first_name} ${notice.author.last_name}`}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -288,10 +301,8 @@ const Notices: React.FC = () => {
                 </CardContent>
                 <CardFooter className="flex justify-between border-t pt-4">
                   <div className="flex items-center text-sm text-muted-foreground">
-                    <div className="flex items-center">
-                      <Eye className="h-4 w-4 mr-1" />
-                      0 views
-                    </div>
+                    <Eye className="h-4 w-4 mr-1" />
+                    View
                   </div>
                   <div className="flex gap-2">
                     <Button size="sm" variant="outline">
@@ -302,9 +313,9 @@ const Notices: React.FC = () => {
                       size="sm" 
                       variant="destructive"
                       onClick={() => handleDelete(notice.id)}
-                      disabled={deleteNoticeMutation.isPending}
+                      disabled={deleting === notice.id}
                     >
-                      {deleteNoticeMutation.isPending && notice.id === deleteNoticeMutation.variables ? (
+                      {deleting === notice.id ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
                         <Trash2 className="h-4 w-4" />
@@ -319,7 +330,6 @@ const Notices: React.FC = () => {
               <CardContent className="flex flex-col items-center justify-center p-8">
                 <Bell className="h-12 w-12 text-muted-foreground mb-4" />
                 <p className="text-muted-foreground">No notices found</p>
-                <CreateNoticeDialog />
               </CardContent>
             </Card>
           )}

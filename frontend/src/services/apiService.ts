@@ -259,37 +259,45 @@ export const academicAPI = {
 
 // Attendance APIs
 export const attendanceAPI = {
+  getStatuses: async () => {
+    const response = await apiClient.get('/attendance/statuses/');
+    return response.data;
+  },
+
   getAttendance: async (filters?: any) => {
     const queryParams = filters ? `?${new URLSearchParams(filters)}` : '';
-    const response = await apiClient.get(`/attendance/${queryParams}`);
+    const response = await apiClient.get(`/attendance/attendance/${queryParams}`);
     return response.data;
   },
 
   markAttendance: async (attendanceData: any) => {
-    const response = await apiClient.post('/attendance/', attendanceData);
+    const response = await apiClient.post('/attendance/attendance/', attendanceData);
     return response.data;
   },
 
   bulkMarkAttendance: async (attendanceData: any) => {
-    const response = await apiClient.post('/attendance/bulk_mark/', attendanceData);
+    const response = await apiClient.post('/attendance/attendance/bulk_mark/', attendanceData);
     return response.data;
   },
 
   getAttendanceStats: async (filters?: any) => {
     const queryParams = filters ? `?${new URLSearchParams(filters)}` : '';
-    const response = await apiClient.get(`/attendance/statistics/${queryParams}`);
+    const response = await apiClient.get(`/attendance/attendance/statistics/${queryParams}`);
     return response.data;
   },
 
-  getClassReport: async (classId: string, date?: string) => {
-    const queryParams = date ? `?date=${date}` : '';
-    const response = await apiClient.get(`/attendance/class-report/${classId}/${queryParams}`);
+  getClassReport: async (classId: string, date?: string, sectionId?: string) => {
+    const queryParams = new URLSearchParams();
+    if (classId) queryParams.append('class_id', classId);
+    if (sectionId) queryParams.append('section_id', sectionId);
+    if (date) queryParams.append('date', date);
+    const response = await apiClient.get(`/attendance/attendance/class_report/?${queryParams.toString()}`);
     return response.data;
   },
 
   getSummary: async (filters?: any) => {
     const queryParams = filters ? `?${new URLSearchParams(filters)}` : '';
-    const response = await apiClient.get(`/attendance/summary/${queryParams}`);
+    const response = await apiClient.get(`/attendance/attendance/summary/${queryParams}`);
     return response.data;
   },
 };

@@ -43,6 +43,7 @@ import PrincipalTeacherAttendance from "./pages/principal/TeacherAttendance";
 import TeacherClasses from "./pages/teacher/Classes";
 import TeacherAttendance from "./pages/teacher/Attendance";
 import TeacherAssignments from "./pages/teacher/Assignments";
+import CreateAssignment from "./pages/teacher/CreateAssignment";
 import TeacherCalendar from "./pages/teacher/Calendar";
 import TeacherNotices from "./pages/teacher/TeacherNotices";
 import TeacherResources from "./pages/teacher/Resources";
@@ -210,6 +211,8 @@ const App = () => {
             <Route path="/teacher/mark-attendance" element={<MarkAttendance />} />
             <Route path="/teacher/upload-marks" element={<UploadMarks />} />
             <Route path="/teacher/assignments" element={<TeacherAssignments />} />
+            <Route path="/teacher/assignments/create" element={<CreateAssignment />} />
+            <Route path="/teacher/assignments/:assignmentId/edit" element={<CreateAssignment />} />
             <Route path="/teacher/view-submissions" element={<ViewSubmissions />} />
             <Route path="/teacher/calendar" element={<TeacherCalendar />} />
             <Route path="/teacher/notices" element={<TeacherNotices />} />

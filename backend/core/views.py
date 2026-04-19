@@ -110,6 +110,21 @@ class StudentProfileViewSet(viewsets.ModelViewSet):
         
         # Principal and Developer can see all
         return queryset
+    
+    def filter_queryset(self, queryset):
+        queryset = super().filter_queryset(queryset)
+        
+        # Filter by class_assigned if provided
+        class_assigned = self.request.query_params.get('class_assigned')
+        if class_assigned:
+            queryset = queryset.filter(class_assigned__id=class_assigned)
+        
+        # Filter by section if provided
+        section = self.request.query_params.get('section')
+        if section:
+            queryset = queryset.filter(section__id=section)
+        
+        return queryset
 
 class ParentProfileViewSet(viewsets.ModelViewSet):
     queryset = ParentProfile.objects.all()
